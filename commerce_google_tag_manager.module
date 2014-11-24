@@ -58,9 +58,8 @@ function commerce_google_tag_manager_ecommerce_js($order) {
       if (!empty($product_id)) {
         // Build the item arguments.
         $product_data = array(
-          'sku' => $line_item_wrapper->commerce_product->sku->value(),
+          'id' => $line_item_wrapper->commerce_product->sku->value(),
           'name' => $line_item_wrapper->commerce_product->title->value(),
-          'category' => '',
           'price' => commerce_currency_amount_to_decimal($line_item_wrapper->commerce_unit_price->amount->value(), $line_item_wrapper->commerce_unit_price->currency_code->value()),
           'quantity' => (int) $line_item_wrapper->quantity->value(),
         );
@@ -76,13 +75,20 @@ function commerce_google_tag_manager_ecommerce_js($order) {
 
   // Build the transaction arguments.
   $transaction = array(
-    'event' => 'trackTrans',
-    'transactionId' => $order->order_id->value(),
-    'transactionAffiliation' => variable_get('site_name', ''),
-    'transactionTotal' => commerce_currency_amount_to_decimal($order->commerce_order_total->amount->value(), $order->commerce_order_total->currency_code->value()),
-    'transactionTax' => $tax_sum,
-    'transactionShipping' => $shipping,
-    'transactionProducts' => $products,
+    'ecommerce' => array(
+      'purchase' => array(
+        'actionField' => array(
+          'id' => $order->order_id->value(),
+          'affiliation' => variable_get('site_name', ''),
+          'revenue' => commerce_currency_amount_to_decimal($order->commerce_order_total->amount->value(), $order->commerce_order_total->currency_code->value()),
+          'tax' => $tax_sum,
+          'shipping' => $shipping,
+          // 'coupon' => '',
+          'currency' => $order->commerce_order_total->currency_code->value(),
+        ),
+        'products' => $products,
+      ),
+    ),
   );
 
   // Allow other modules implement hook_commerce_google_tag_manager_transaction_data_alter.
@@ -107,7 +113,8 @@ function commerce_google_tag_manager_send_order($order) {
 
   // Add the javascript only when we are on the order complete page.
   $script = commerce_google_tag_manager_ecommerce_js($order);
-  $_SESSION['commerce_google_tag_manager'] = $script;
+  // Remember to pass this cookie through in varnish.
+  user_cookie_save(array('commerce_google_tag_manager' => $script));
 }
 
 /**
@@ -115,13 +122,14 @@ function commerce_google_tag_manager_send_order($order) {
  */
 function commerce_google_tag_manager_page_build(&$page) {
 
-  if (!empty($_SESSION['commerce_google_tag_manager'])) {
+  if (!empty($_COOKIE['Drupal_visitor_commerce_google_tag_manager'])) {
     // Data escaped via drupal_json_encode().
-    $script = $_SESSION['commerce_google_tag_manager'];
+    $script = $_COOKIE['Drupal_visitor_commerce_google_tag_manager'];
     $page['page_top']['#attached']['js'][] = array(
       'type' => 'inline',
       'data' => $script,
     );
-    unset($_SESSION['commerce_google_tag_manager']);
+    watchdog('commerce_google_tag_manager', 'attach transaction data to the page', array(), WATCHDOG_INFO);
+    user_cookie_delete('commerce_google_tag_manager');
   }
 }
