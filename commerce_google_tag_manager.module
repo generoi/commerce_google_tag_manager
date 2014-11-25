@@ -76,6 +76,7 @@ function commerce_google_tag_manager_ecommerce_js($order) {
   // Build the transaction arguments.
   $transaction = array(
     'ecommerce' => array(
+      'currencyCode' => $order->commerce_order_total->currency_code->value(),
       'purchase' => array(
         'actionField' => array(
           'id' => $order->order_id->value(),
@@ -83,8 +84,6 @@ function commerce_google_tag_manager_ecommerce_js($order) {
           'revenue' => commerce_currency_amount_to_decimal($order->commerce_order_total->amount->value(), $order->commerce_order_total->currency_code->value()),
           'tax' => $tax_sum,
           'shipping' => $shipping,
-          // 'coupon' => '',
-          'currency' => $order->commerce_order_total->currency_code->value(),
         ),
         'products' => $products,
       ),
